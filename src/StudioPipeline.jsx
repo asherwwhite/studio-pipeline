@@ -1130,7 +1130,7 @@ function TemplateEditorModal({ template, onSave, onClose, isAdmin }) {
 }
 
 // ── Docs & Links Tab ──────────────────────────────────────────────────────────
-function DocsLinksTab({ files, links, setFiles, setLinks, userId, projectId }) {
+function DocsLinksTab({ files, links, saveFiles, setLinks, userId, projectId }) {
   const [dragging, setDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [openingId, setOpeningId] = useState(null);
@@ -1159,7 +1159,7 @@ function DocsLinksTab({ files, links, setFiles, setLinks, userId, projectId }) {
     }));
     setUploading(false);
     const uploaded = results.filter(Boolean);
-    if (uploaded.length) setFiles([...files, ...uploaded]);
+    if (uploaded.length) saveFiles([...files, ...uploaded]);
   };
 
   const submitLink = () => {
@@ -1181,7 +1181,7 @@ function DocsLinksTab({ files, links, setFiles, setLinks, userId, projectId }) {
   const removeFile = async id => {
     const file = files.find(f => f.id === id);
     if (file?.path) await supabase.storage.from("project-files").remove([file.path]);
-    setFiles(files.filter(f => f.id !== id));
+    saveFiles(files.filter(f => f.id !== id));
   };
   const removeLink = id => setLinks(links.filter(l => l.id!==id));
   const openFile = async f => {
@@ -1459,8 +1459,19 @@ function ProjectEditor({ project: initProject, user, onUpdate, onClose, template
   const set = (k, v) => setProject(p => ({ ...p, [k]:v }));
   const setClPhases = phases => set("clPhases", phases);
   const setChecks = checks => set("checks", checks);
-  const setFiles = files => set("files", files);
   const setLinks = links => set("links", links);
+
+  // Files bypass the debounced autosave: persisted immediately against the
+  // latest project state so an in-flight upload/delete can't be overwritten
+  // by a stale closure, and failures are surfaced rather than swallowed.
+  const saveFiles = newFiles => {
+    setProject(p => {
+      const updated = { ...p, files: newFiles, updatedAt: new Date().toISOString() };
+      onUpdate(updated);
+      return updated;
+    });
+    setSavedAt(Date.now());
+  };
   const updateDel = (id, u) => set("deliverables", project.deliverables.map(d => d.id===id ? u : d));
   const removeDel = id => set("deliverables", project.deliverables.filter(d => d.id!==id));
   const addDel = () => set("deliverables", [...project.deliverables, emptyDeliverable()]);
@@ -1672,7 +1683,7 @@ function ProjectEditor({ project: initProject, user, onUpdate, onClose, template
             )}
 
             {activeTab==="docs" && (
-              <DocsLinksTab files={project.files||[]} links={project.links||[]} setFiles={setFiles} setLinks={setLinks} userId={user.id} projectId={project.id} />
+              <DocsLinksTab files={project.files||[]} links={project.links||[]} saveFiles={saveFiles} setLinks={setLinks} userId={user.id} projectId={project.id} />
             )}
 
             {activeTab!=="checklist" && activeTab!=="docs" && (
@@ -1836,11 +1847,13 @@ export default function App() {
     setCurrentProjectId(saved.id);
   };
 
-  const updateProject = updated => {
+  const updateProject = async updated => {
     const now = new Date().toISOString();
     const p = { ...updated, updatedAt: now };
     setProjects(prev => prev.map(q => q.id === p.id ? p : q));
-    supabase.from("projects").upsert(toDb(p));
+    const { error } = await supabase.from("projects").upsert(toDb(p));
+    if (error) { console.error("updateProject failed:", error); return false; }
+    return true;
   };
 
   const deleteProject = id => {
