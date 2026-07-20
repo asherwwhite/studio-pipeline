@@ -2237,6 +2237,7 @@ function ProjectEditor({ project: initProject, user, onUpdate, onClose, template
 // ── DB field converters ───────────────────────────────────────────────────────
 const toDb = p => ({
   id:               p.id,
+  org_id:           p.orgId,
   owner_id:         p.ownerId,
   owner_name:       p.ownerName,
   owner_email:      p.ownerEmail,
@@ -2275,6 +2276,7 @@ const toDb = p => ({
 
 const fromDb = r => ({
   id:              r.id,
+  orgId:           r.org_id            || null,
   ownerId:         r.owner_id,
   ownerName:       r.owner_name        || "",
   ownerEmail:      r.owner_email       || "",
@@ -2319,6 +2321,7 @@ export default function App() {
   const [productionChecklistTemplate, setProductionChecklistTemplate] = useState(clone(DEFAULT_PRODUCTION_CHECKLIST_TEMPLATE));
   const [productionAgreementTemplate, setProductionAgreementTemplate] = useState(DEFAULT_PRODUCTION_AGREEMENT_TEMPLATE);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [currentOrgId, setCurrentOrgId] = useState(null);
   const [appLoading, setAppLoading] = useState(true);
 
   useEffect(() => {
@@ -2353,28 +2356,54 @@ export default function App() {
     setProjects((data || []).map(fromDb));
   };
 
-  const loadTemplateAndAdmin = async user => {
-    const [tplRes, adminRes] = await Promise.all([
-     supabase.from("production_checklist_template").select("phases").eq("id", 1).single(),
-      supabase.from("profiles").select("is_admin").eq("id", user.id).single(),
-    ]);
-    if (tplRes.data?.phases) setProductionChecklistTemplate(tplRes.data.phases);
-    const admin = !adminRes.error && !!adminRes.data?.is_admin;
+const loadTemplateAndAdmin = async user => {
+    // 1. Which org does this user belong to, and with what role?
+    const memRes = await supabase
+      .from("organization_members")
+      .select("org_id, role")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    const orgId = memRes.data?.org_id || null;
+    const admin = memRes.data?.role === "admin";
+    setCurrentOrgId(orgId);
     setIsAdmin(admin);
+
+    // No org yet (e.g. brand-new signup) — nothing more to load.
+    if (!orgId) return;
+
+    // 2. Templates, now scoped to that org instead of the old id:1.
+    const tplRes = await supabase
+      .from("production_checklist_template")
+      .select("phases")
+      .eq("org_id", orgId)
+      .maybeSingle();
+    if (tplRes.data?.phases) setProductionChecklistTemplate(tplRes.data.phases);
+
     if (admin) {
-      const agrRes = await supabase.from("production_agreement_template").select("body").eq("id", 1).maybeSingle();
+      const agrRes = await supabase
+        .from("production_agreement_template")
+        .select("body")
+        .eq("org_id", orgId)
+        .maybeSingle();
       if (agrRes.data?.body) setProductionAgreementTemplate(agrRes.data.body);
     }
   };
-
+  
   const saveProductionChecklistTemplate = async tpl => {
+    if (!currentOrgId) return;
     setProductionChecklistTemplate(tpl);
-    await supabase.from("production_checklist_template").upsert({ id: 1, phases: tpl, updated_at: new Date().toISOString() });
+    await supabase.from("production_checklist_template")
+      .upsert({ org_id: currentOrgId, phases: tpl, updated_at: new Date().toISOString() },
+              { onConflict: "org_id" });
   };
 
   const saveProductionAgreementTemplate = async tpl => {
+    if (!currentOrgId) return;
     setProductionAgreementTemplate(tpl);
-    await supabase.from("production_agreement_template").upsert({ id: 1, body: tpl, updated_at: new Date().toISOString() });
+    await supabase.from("production_agreement_template")
+      .upsert({ org_id: currentOrgId, body: tpl, updated_at: new Date().toISOString() },
+              { onConflict: "org_id" });
   };
 
   const handleLogin = async supabaseUser => {
@@ -2389,7 +2418,7 @@ export default function App() {
   };
 
   const createProject = async meta => {
-    const np = { ...emptyProject(productionChecklistTemplate, currentUser), title:meta.title||"Untitled Project", client:meta.client||"", projectType:meta.type||"animation" };
+    const np = { ...emptyProject(productionChecklistTemplate, currentUser), title:meta.title||"Untitled Project", client:meta.client||"", projectType:meta.type||"animation", orgId: currentOrgId };
     const { id: _omit, ...rowWithoutId } = toDb(np);
     const { data, error } = await supabase.from("projects").insert(rowWithoutId).select().single();
     if (error) { console.error("createProject:", error); return; }
