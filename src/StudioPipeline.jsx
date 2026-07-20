@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { supabase } from "./supabase.js";
+import { Document, Page, View, Text, StyleSheet, pdf } from "@react-pdf/renderer";
 
 // ── Utilities ─────────────────────────────────────────────────────────────────
 let _seq = 0;
@@ -69,7 +70,7 @@ const PALETTE = [
   {color:"#0277bd",bg:"#e1f5fe"},{color:"#b05c2f",bg:"#fdf0e8"},
 ];
 
-const DEFAULT_TEMPLATE = [
+const DEFAULT_PRODUCTION_CHECKLIST_TEMPLATE = [
   { id:"ph_dev", label:"Development", color:"#2e7d32", bg:"#e8f4ea", items:[
     {id:"d1",label:"Create Project Folder",children:[]},
     {id:"d2",label:"Proposal (w/ Quote)",children:[{id:"d2a",label:"Sent"},{id:"d2b",label:"Approved"},{id:"d2c",label:"Stored"}]},
@@ -119,11 +120,179 @@ const DEFAULT_TEMPLATE = [
     {id:"rc3",label:"Notify all participants of project completion (include where they can watch / stay up to date)",children:[]},
   ]},
 ];
+// Paste this near your DEFAULT_PRODUCTION_CHECKLIST_TEMPLATE definition.
+// It's the tokenized master agreement used as the default before anything is saved.
+const DEFAULT_PRODUCTION_AGREEMENT_TEMPLATE = `PRODUCTION AGREEMENT / SCOPE OF WORK AGREEMENT
 
+This Agreement ("AGREEMENT") is entered into as of {{TODAY}} by and between Shaper Films ("PRODUCER"), and {{CLIENT}}, ("CLIENT"). Client and Producer may also hereinafter be referred to as "Party" or the "Parties", as applicable.
+
+WHEREAS, Producer confirms it has the know-how and professional expertise to execute the deliverables ("Deliverables") for {{TITLE}}; and
+
+WHEREAS, Client agrees to pay for the services to be performed by Producer; and
+
+WHEREAS, the parties desire to enter into a business relationship to be governed by the terms and conditions set forth herein;
+
+NOW THEREFORE, in consideration of the mutual promises set forth herein, the sufficiency of which is hereby acknowledged, the parties agree as follows:
+
+1. SUBJECT OF THE AGREEMENT. Client has provided Producer with instructions for the Deliverables to be executed by the Producer. The Parties have agreed that Producer will create and deliver the Deliverables. All Deliverables are listed under Exhibit A. This is a material condition for the Client to enter into this Agreement.
+
+2. SCHEDULE AND SERVICES TO BE PROVIDED BY PRODUCER. The scope of work for this Agreement will begin on {{START_DATE}} and end on {{END_DATE}}. Client is entitled to {{REVISIONS}} revisionary rounds in accordance with the Post-Production Schedule determined by Producer. Any delay in delivery of revisionary notes will delay Final Delivery. Producer will deliver the Final Files of the Deliverables by {{DELIVERY_DATE}}. If Client changes the final deadline date for any reason, additional costs will be incurred that are to be determined by Producer. Final files supplied by Producer are strictly the final exports of the Deliverables as requested by Client. The Producer grants Client Global usage rights with no limitations for perpetuity as it related to the final files supplied. Final Files do not include project raw footage, project files, project assets, software, hardware, etc. as those files are proprietary property that belong to Producer.
+
+3. FEES AND PAYMENT TERMS. The total estimated cost of the Deliverables is \${{BUDGET_TOTAL}}. The estimate is based on the instructions provided by Client to Producer. The estimate includes, but is not limited to, expenses for the following items: all production and post-production costs, equipment, contractors, transportation, location, as well as usage as defined in Article 4 below.
+
+3.1. In accepting the estimate, and in consideration of Producer's services in connection with the Deliverables, Client is hereby agreeing to pay Producer the total estimated cost of the Deliverables upon receipt of the respective invoice(s) and according to the following payment schedule:
+
+{{PAYMENT_SCHEDULE}}
+
+3.2. Notwithstanding the foregoing, Producer will be paid for any additional production expenses incurred, including but not limited to costs relating to insurance, equipment, contractors, transportation, location etc. if Client delays the production. If client chooses to defer paying any amount beyond the date on which it is due, Client may be charged at Producer's discretion, as additional consideration, an amount equal to the current prime rate +2% (as charged by Producer's bank from time to time) on unpaid amounts until paid, compounded monthly. Ownership of the Final Files does not transfer until full payment is made to Producer.
+
+3.3. Producer will be paid for any additional production expenses incurred as it relates to Overtime including but not limited to costs relating to location, contractors, equipment, transportation, insurance etc. Overtime is based on a 10-hour day including but not limited to work performed on and off set and during the post-production process in addition to work performed on weekends and holidays. Overtime costs will be presented by Producer to Client before those specific costs are incurred for Client approval. In the event that Producer cannot obtain permission from Client in an extenuating and time sensitive situation, Client grants Producer the authority to use their best judgement as it relates to Overtime costs.
+
+3.4. If Client cancels the production of the Deliverables according to Article 6 below, Client shall pay to Producer any costs reasonably incurred by Producer prior to the cancellation of the Deliverables within five (5) days after invoice, provided Producer provides Client proof of such costs (e.g. invoices, etc.). In addition, a non-refundable cancellation fee of 25% of the total agreed upon project budget reflected in this agreement is to be paid to the Producer immediately upon official cancellation of the project. If notice of cancellation/postponement is given more than halfway through the production schedule of the job, that is between the award or start date and the final delivery date, whichever comes first, the Client will be liable to the Producer for the full cost of the job as a bid. If the job is canceled or postponed within the guideline time frame, it is unlikely that this time can be re-booked. It should be understood that this time represents the Production Company's only source of income.
+
+3.5. If at any time, Client desires to make any changes or variations from the script(s) or storyboard(s) in the Specified Media(s) or from any material or work in progress, and such changes result in additional costs to Producer, Producer agrees to notify the Client of the amount before any such additional costs are incurred and Producer shall proceed only after receiving approval (written or oral) from Authorized Representative, approval by Client shall be binding and incorporated into the terms of this Agreement. Reimbursement for such additional costs shall be payable in accordance with the terms of this Agreement for final payment.
+
+3.6. Any additional costs incurred by the Producer due to adverse weather conditions or other similarly unforeseen and uncontrollable factors, shall be paid by Client, provided that (i) both Parties agreed to postpone the edit and (ii) the Producer provided proof of any such additional costs incurred (e.g. invoices, etc.).
+
+3.7. Contingency and Weather Days:
+a. A contingency day is any day where a schedule's media/film shooting/production has been prevented from occurring due to circumstances beyond the control of the production company.
+b. These circumstances may include but should not be limited to:
+   1. Weather conditions (rain, fog, sleet, hail, or any adverse condition that is not consistent with the prescribed shooting conditions desired by Client).
+   2. Injury, illness, or absence of client-supplied elements (e.g. key talent, color correct products etc).
+   3. "Force majeure" (meaning but not limited to, earthquake, riot, fire, flood, volcanic eruption, acts of war, strikes, labor unrests, civil authority, terrorism, and acts of God).
+   4. "Client Insured Re-Shoot" (any additional days for a job insured by the Client, who is therefore authorizing the expenditure). The Client should be provided with a contingency day cost which should be approved prior to proceeding with that shoot day.
+c. The Production Company recognizes its obligation to minimize contingency day liabilities and will apply accepted industry cancellation practices.
+d. The Production Company will quote the maximum exposure figure (a "not to exceed" figure) as a contingency day cost. This will be a cost per day figure. However, this figure does not include the cost of premiums for crew or suppliers (i.e., should the contingency day fall on weekends, holidays, or premium days based on consecutive employment).
+
+4. INTELLECTUAL PROPERTY RIGHTS. Client shall own the final Deliverables. Client shall ensure all proper likeness rights are obtained from anyone in the Deliverables. Producer retains the right to use the Deliverables for promotional and/or educational purposes. Except as otherwise provided herein, Client owns all rights, title and interest in and to the media(s) which are the subject of this Agreement, including all copyrights therein. Client grants Producer an exclusive, worldwide, sublicenseable, transferable, royalty free license to all media produced during the course of the contracted work as it relates to Producer's promotional and educational use.
+
+5. INDEPENDENT CONTRACTOR. It is understood that Producer's status under this Agreement is that of an independent contractor and that all persons engaged by Producer in performing its obligations shall not be deemed employees of Client.
+
+6. LIABILITY. Producer shall ensure that the Deliverables and all media produced by Producer complies with the laws of North Carolina and does not infringe any intellectual property rights (including copyright) or any other rights of third parties.
+
+6.1. Producer understands that some information for said media(s) may be of a confidential and/or sensitive nature. Producer agrees, at Client's written request, to require, within reason, those engaged for the production to sign appropriate agreements not to discuss or disclose information about the product or the Specified Media(s) except as such disclosure may be necessary for Producer to produce media(s) in the usual and customary manner under this Agreement.
+
+7. TERMINATION OF AGREEMENT. This Agreement shall be effective from {{TODAY}} for a period of one year, unless sooner terminated by either party in accordance with the terms and conditions of this Agreement ("Term"). This Agreement is terminable by either party at any time, with or without cause, effective upon notice to the other party. If Producer exercises its right to terminate the Agreement, any obligation it may otherwise have under this Agreement shall cease immediately, except that Producer shall be obligated to compensate Client for work performed up to the time of termination. If Client exercises its right to terminate the Agreement, a non-refundable cancellation fee of 25% of the total agreed upon project budget reflected in this agreement is to be paid to the Producer immediately upon official cancellation of the project. This cancellation fee will be in addition to any production expenses incurred up until the agreed upon cancellation including but not limited to last minute crew and associated labor and vendor cancellation fees etc. After the cancellation fee and incurred production expenses are paid to Producer in full, any obligation Client may otherwise have under this Agreement shall cease immediately.
+
+8. CONTINUING OBLIGATIONS OF CLIENT. All provisions of this Agreement relating to the protection of Producer's Confidential Information, Non-Solicitation and Non-Competition, Limitation of Liability, Indemnification, and Dispute resolution, shall survive expiration or termination of this Agreement for any reason.
+
+9. INSURANCE. Producer agrees that at all times during the production of the Deliverables it will maintain at least $1 Million dollars in general liability insurance.
+
+10. ADDITIONAL PROVISIONS.
+
+10.1. ARBITRATION. Any dispute arising out of or relating to this Agreement, or any breach thereof, shall be resolved by binding arbitration in Durham, North Carolina in accordance with the Arbitration Rules of the American Arbitration Association then in effect, and judgment on the award rendered by the arbitrator(s) may be entered in any court of competent jurisdiction. All costs and expenses, including attorney's fees, relating to the resolution of any such dispute shall be borne by the party incurring such costs and expenses. Notwithstanding their promise to arbitrate all disputes, the Parties acknowledge that either of them may seek emergency or temporary injunctive relief, but absolutely no other relief, in any court of competent jurisdiction. All other disputes, claims and remedies shall be settled by arbitration.
+
+10.2. INDEMNITY. CLIENT AGREES TO DEFEND, INDEMNIFY, AND HOLD PRODUCER, AND ITS OFFICERS, EMPLOYEES, AGENTS, REPRESENTATIVES, SUCCESSORS, AND ASSIGNS, HARMLESS FROM ANY AND ALL LOSSES, CLAIMS, LIABILITIES, COSTS, JUDGMENTS AND EXPENSES (INCLUDING BUT NOT LIMITED TO REASONABLE ATTORNEY'S FEES), WHETHER IN TORT, CONTRACT, OR OTHERWISE, ARISING OUT OF THE PERFORMANCE OF CLIENT'S WORK, WHETHER CAUSED BY PRODUCER'S ALLEGED OR ACTUAL NEGLIGENCE OR OTHERWISE.
+
+10.3. LIMITATION OF LIABILITY. In no event shall Producer be liable to client for any indirect, incidental, consequential or punitive damages, or for loss of profits, revenue or data, whether in an action in contract, tort, strict liability, or otherwise, even if Client advises Producer of the possibility of those damages. Producer's liability on any claim for any loss or damage arising out of or in connection with or resulting from this shall in no case exceed the value of the services provided by Client under this Agreement, as defined above. Producer shall not be liable for any penalties of any kind. Any action against Producer for any alleged breach under this Agreement must be filed within one (1) year after such action accrues and all rights of Client to initiate any action arising from this Agreement will terminate one (1) year after accrual.
+
+10.4. CLIENT'S REMEDY. Client's remedy, if any, for any breach of this Agreement shall be solely in damages and Client shall look solely to Producer for recovery of such damages. Client waives and relinquishes any right Client may otherwise have to obtain injunctive or equitable relief. Client shall have no remedy for any loss, which may incur by reason of work performed by Client.
+
+10.5. INTERPRETATION. Whenever possible, each provision of this Agreement shall be interpreted in such manner as to be effective and valid under applicable law.
+
+10.6. BINDING EFFECT. This Agreement shall be binding upon, and inure to the benefit of, the successors, executors, heirs, representatives, administrators and permitted assigns of the parties hereto. Client shall have no right to (a) assign this Agreement, by operation of law or otherwise; or (b) subcontract or otherwise delegate the performance of the Services without Producer's prior written consent which may be withheld as Producer determines in its sole discretion. Any such purported assignment shall be void.
+
+10.7. NO WAIVER. Failure of any party to this Agreement to exercise any rights shall not constitute a waiver of those rights.
+
+10.8. ENFORCEABILITY. If one or more of the provisions of this Agreement shall be held unenforceable, it shall not affect the enforceability of the other provisions.
+
+10.9. SERVIBILITIY. If any provision of this Agreement shall be found invalid or unenforceable, the remainder of this Agreement shall be interpreted so as best to reasonably affect the intent of the parties.
+
+10.10. ENTIRE AGREEMENT. This Agreement constitutes the entire understanding and agreement of the parties with respect to its subject matter and supersedes all prior and contemporaneous agreements or understandings, inducements or conditions, express or implied, written or oral, between the parties.
+
+10.11. AGENCY. Client is not Producer's agent or representative and has no authority to bind or commit Producer to any agreements or other obligations.
+
+10.12. AMENDMENT AND WAIVERS. Any term or provision of this Agreement may be amended, and the observance of any term of this Agreement may be waived, only by a writing signed by the party to be bound. The waiver by a party of any breach or default in performance shall not be deemed to constitute a waiver of any other or succeeding breach or default. The failure of any party to enforce any of the provisions hereof shall not be construed to be a waiver of the right of such party thereafter to enforce such provisions.
+
+10.13. TIME. Contractor agrees that time is of the essence in this Agreement.
+
+10.14. PROFESSIONAL RESPONSIBILITY. Nothing in this Agreement shall be construed to interfere with or otherwise affect the rendering of your services in accordance with your independent and professional judgment. You shall perform your services substantially in accordance with generally accepted practices and principles of your trade.
+
+10.15. NOTICIES. Any notice, demand, or request with respect to this Agreement shall be in writing and shall be effective only if it is delivered by personal service, by air courier with receipt of delivery, or mailed, certified mail, return receipt requested, postage prepaid, to the address set forth below. Such communications shall be effective when they are received by the addressee; but if sent by certified mail in the manner set forth above, they shall be effective five (5) days after being deposited in the mail. Any party may change its address for such communications by giving notice to the other party in conformity with this section.
+
+
+EXHIBIT A
+
+{{EXHIBIT_A}}
+
+
+SIGNATURES
+
+Agreed to and Accepted by: CLIENT
+Date: _______________________________________
+Print Name: _________________________________
+Signature: __________________________________
+Phone: _____________________________________
+E-mail: _____________________________________
+Client Company: _____________________________
+
+Agreed to and Accepted by: PRODUCER
+Date: _______________________________________
+Print Name: _________________________________
+Signature: ___________________________________
+Phone: ______________________________________
+E-mail: ______________________________________
+Production Company: _________________________
+`;
 const RESOLUTIONS   = ["4K (3840×2160)","2K (2048×1556)","1080p (1920×1080)","2160p HDR","6K","8K","Custom"];
 const FRAME_RATES   = ["23.976fps","24fps","25fps","29.97fps","30fps","48fps","60fps","120fps","Custom"];
 const ASPECT_RATIOS = ["16:9","2.39:1","1.85:1","2.35:1","4:3","1.33:1","1:1","Custom"];
 const COLOR_SPACES  = ["Rec.709","Rec.2020","P3 D65","ACES","S-Log3","Log-C","Custom"];
+
+// ── Contract token engine ──────────────────────────────────────────────────
+// Paste this near the top of StudioPipeline.jsx, alongside your other top-level
+// helpers/constants (e.g. right after DEFAULT_PRODUCTION_AGREEMENT_TEMPLATE).
+// It reads directly from a project object using your real camelCase field names.
+
+// Spelled-out date, e.g. "October 14, 2026". The "T00:00:00" forces local time
+// so a date like "2026-10-14" never displays as the day before in some timezones.
+const fmtDateLong = d => d
+  ? new Date(d + "T00:00:00").toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })
+  : "";
+
+// Each token maps to where its value comes from on a project (p).
+// To add a token later, add one line here — this is the single source of truth.
+const CONTRACT_TOKENS = {
+  CLIENT:           p => p.client,
+  TITLE:            p => p.title,
+  START_DATE:       p => fmtDateLong(p.startDate),
+  END_DATE:         p => fmtDateLong(p.endDate),
+  DELIVERY_DATE:    p => fmtDateLong(p.deliveryDate),
+  REVISIONS:        p => p.revisions,
+  BUDGET_TOTAL:     p => p.budgetTotal,
+  PAYMENT_SCHEDULE: p => p.paymentSchedule,
+  TODAY:            () => new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" }),
+
+  // Expands the whole deliverables array into formatted Exhibit A text.
+  EXHIBIT_A: p => {
+    if (!p.deliverables || p.deliverables.length === 0) return "";
+    return p.deliverables.map((d, i) => {
+      const lines = [`${i + 1}. ${d.name || "Untitled Deliverable"}`];
+      if (d.runtime)      lines.push(`   Runtime: ${d.runtime}`);
+      if (d.format)       lines.push(`   Format: ${d.format}`);
+      if (d.resolution)   lines.push(`   Resolution: ${d.resolution}`);
+      if (d.frameRate)    lines.push(`   Frame Rate: ${d.frameRate}`);
+      if (d.aspectRatio)  lines.push(`   Aspect Ratio: ${d.aspectRatio}`);
+      if (d.colorSpace)   lines.push(`   Color Space: ${d.colorSpace}`);
+      if (d.deliveryFormats?.length) lines.push(`   Additional formats: ${d.deliveryFormats.join(", ")}`);
+      if (d.notes)        lines.push(`   Notes: ${d.notes}`);
+      return lines.join("\n");
+    }).join("\n\n");
+  },
+};
+
+// Fills a template string against a project.
+// - Unknown token (typo) -> left exactly as written, so it's visible.
+// - Known token, empty value -> shown as [TOKEN], so nothing vanishes silently.
+// - Known token, real value -> swapped in.
+function fillContractTemplate(template, project) {
+  return template.replace(/\{\{\s*([A-Z0-9_]+)\s*\}\}/g, (raw, token) => {
+    if (!(token in CONTRACT_TOKENS)) return raw;
+    const val = CONTRACT_TOKENS[token](project);
+    if (val == null || String(val).trim() === "") return `[${token}]`;
+    return String(val);
+  });
+}
 
 const PROPOSAL_SECTIONS = [
   {key:"overview",label:"Project Overview"},{key:"timeline",label:"Timeline"},
@@ -146,7 +315,7 @@ const emptyProject = (tpl, user) => ({
   updatedAt: new Date().toISOString(),
   title:"", client:"", preparedBy: user ? user.name : "", logline:"",
   projectType:"animation", genre:"",
-  startDate:"", deliveryDate:"", timelinePhases:"",
+  startDate:"", deliveryDate:"", endDate:"", revisions:"", timelinePhases:"",
   budgetTotal:"", currency:"USD", paymentSchedule:"", notes_budget:"",
   deliverables:[],
   director:"", producer:"", writer:"", dop:"", editor:"", vfxLead:"", customTeam:"",
@@ -157,109 +326,258 @@ const emptyProject = (tpl, user) => ({
   links: [],
 });
 
-// ── Proposal HTML builder (no nested template literals) ────────────────────────
-function buildProposalHtml(project, selected, status) {
-  const esc = s => String(s || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
-  const row = (label, value, preWrap) =>
-    value ? '<div class="row"><span class="lbl">' + esc(label) + '</span><span class="val"' +
-      (preWrap ? ' style="white-space:pre-line"' : '') + '>' + esc(value) + '</span></div>' : '';
+// ── Proposal PDF document (react-pdf — true multi-page text flow) ─────────────
+const pdfStyles = StyleSheet.create({
+  // Page-level padding becomes true page margins on every physical page,
+  // including continuation pages — padding on an inner View only applies
+  // once (where that View starts/ends), which is why text used to sit
+  // flush against the top/bottom edges on page breaks.
+  page: { backgroundColor:"#faf9f7", fontFamily:"Helvetica", fontSize:10, color:"#1a1a1a", paddingTop:56, paddingBottom:56, paddingHorizontal:50 },
+  // Cover is full-bleed: negative margin pulls it back out to the true page
+  // edges to cancel the page's own padding, while its own padding keeps the
+  // text inset by the same amount as before — same look, page 1 only.
+  cover: { backgroundColor:"#0d0d0d", paddingTop:56, paddingBottom:40, paddingHorizontal:50, marginTop:-56, marginHorizontal:-50 },
+  eyebrow: { color:"#c8b89a", fontSize:10, letterSpacing:1.4, textTransform:"uppercase", marginBottom:14 },
+  title: { fontFamily:"Times-Bold", fontSize:30, color:"#f5f2ec", marginBottom:8 },
+  meta: { fontSize:10, color:"#9a9a9a", marginTop:18 },
+  body: { paddingTop:40 },
+  section: { marginBottom:26 },
+  sectionHeading: { borderBottomWidth:1, borderBottomColor:"#e0d9cf", paddingBottom:6, marginBottom:14 },
+  sectionHeadingText: { fontFamily:"Times-Bold", fontSize:15, color:"#b05c2f" },
+  row: { flexDirection:"row", marginBottom:8 },
+  rowLabel: { width:140, fontSize:9, fontFamily:"Helvetica-Bold", letterSpacing:0.6, textTransform:"uppercase", color:"#7a6e61" },
+  rowValue: { flex:1, fontSize:11, lineHeight:1.5, color:"#1a1a1a" },
+  logline: { fontSize:11.5, lineHeight:1.6, color:"#333333", fontFamily:"Helvetica-Oblique", marginTop:8, marginBottom:4 },
+  deliverableCard: { borderWidth:1, borderColor:"#e0d9cf", borderRadius:6, padding:16, marginBottom:12 },
+  deliverableName: { fontFamily:"Times-Bold", fontSize:13, marginBottom:10 },
+  specGrid: { flexDirection:"row", flexWrap:"wrap" },
+  specItem: { width:"33%", marginBottom:8, paddingRight:8 },
+  specLabel: { fontSize:8, fontFamily:"Helvetica-Bold", letterSpacing:0.5, textTransform:"uppercase", color:"#7a6e61", marginBottom:2 },
+  specValue: { fontSize:10 },
+  deliverableNote: { fontSize:10, color:"#555555", fontFamily:"Helvetica-Oblique", marginTop:6 },
+  formatsNote: { fontSize:9, color:"#7a6e61", marginTop:6 },
+  notesText: { fontSize:11, lineHeight:1.6, color:"#1a1a1a" },
+  footer: { marginTop:30, paddingTop:14, borderTopWidth:1, borderTopColor:"#e0d9cf", fontSize:8, color:"#aaaaaa", letterSpacing:0.6, textTransform:"uppercase" },
+  // — Production Agreement styles —
+  agrTitle: { fontFamily:"Times-Bold", fontSize:15, color:"#1a1a1a", marginBottom:16, textAlign:"center" },
+  agrMajorHeading: { fontFamily:"Times-Bold", fontSize:13, color:"#b05c2f", marginTop:18, marginBottom:10 },
+  agrClause: { marginBottom:10 },
+  agrClauseText: { fontSize:10, lineHeight:1.5, color:"#1a1a1a" },
+  agrBody: { fontSize:10, lineHeight:1.5, color:"#1a1a1a", marginBottom:8 },
+  agrKeepTogether: { marginTop:18, marginBottom:4 },
+  agrSignatureBlock: { marginTop:16, marginBottom:16 },
+  agrSignatureName: { fontSize:10, fontFamily:"Helvetica-Bold", marginBottom:10 },
+  agrSignatureLine: { fontSize:10, lineHeight:1.8, color:"#1a1a1a", marginBottom:4 },
+  agrInitialsFooter: { position:"absolute", bottom:24, left:50, right:50, borderTopWidth:1, borderTopColor:"#e0d9cf", paddingTop:6 },
+  agrInitialsText: { fontSize:8, color:"#7a6e61", letterSpacing:0.6, textTransform:"uppercase" },
+});
 
-  const css = [
-    "@import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500&display=swap');",
-    "body{font-family:'DM Sans',sans-serif;color:#1a1a1a;background:#faf9f7;margin:0}",
-    ".cover{background:#0d0d0d;color:#f5f2ec;padding:60px 60px 50px}",
-    ".cover .ey{color:#c8b89a;font-size:12px;letter-spacing:.12em;text-transform:uppercase;margin-bottom:14px}",
-    ".cover h1{font-family:'DM Serif Display',serif;font-size:40px;font-weight:400;margin-bottom:8px}",
-    ".cover .meta{margin-top:24px;font-size:12px;color:#888}",
-    ".body{padding:50px 60px;max-width:800px;margin:0 auto}",
-    ".sec{margin-bottom:44px}",
-    ".sec h2{font-family:'DM Serif Display',serif;font-size:20px;color:#b05c2f;font-weight:400;border-bottom:1px solid #e0d9cf;padding-bottom:8px;margin-bottom:20px}",
-    ".row{display:flex;margin-bottom:10px}",
-    ".lbl{width:180px;flex-shrink:0;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#7a6e61;padding-top:2px}",
-    ".val{font-size:14px;line-height:1.7}",
-    ".logline{font-size:15px;line-height:1.8;color:#333;font-style:italic;padding:16px 0}",
-    ".di{border:1px solid #e0d9cf;border-radius:8px;padding:20px 24px;margin-bottom:14px}",
-    ".dn{font-family:'DM Serif Display',serif;font-size:17px;font-weight:400;margin-bottom:14px}",
-    ".ds{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px 20px}",
-    ".sp .sl{font-size:10px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:#7a6e61;margin-bottom:3px}",
-    ".sp .sv{font-size:13px}",
-    ".footer{margin-top:60px;padding-top:20px;border-top:1px solid #e0d9cf;font-size:11px;color:#aaa;letter-spacing:.05em;text-transform:uppercase}",
-    "@media print{body{background:white}}",
-  ].join("");
+function PdfRow({ label, value }) {
+  if (!value) return null;
+  return (
+    <View style={pdfStyles.row}>
+      <Text style={pdfStyles.rowLabel}>{label}</Text>
+      <Text style={pdfStyles.rowValue}>{value}</Text>
+    </View>
+  );
+}
 
+function PdfSectionHeading({ children, ...rest }) {
+  return (
+    <View style={pdfStyles.sectionHeading} {...rest}>
+      <Text style={pdfStyles.sectionHeadingText}>{children}</Text>
+    </View>
+  );
+}
+
+function ProposalDocument({ project, selected, status }) {
   const dateStr = new Date().toLocaleDateString("en-US", { year:"numeric", month:"long", day:"numeric" });
   const typeLabel = project.projectType
     ? project.projectType.charAt(0).toUpperCase() + project.projectType.slice(1).replace("_"," ")
     : "";
-
-  let body = "";
-
-  if (selected.overview) {
-    body += '<div class="sec"><h2>Project Overview</h2>';
-    body += row("Client", project.client);
-    body += row("Type", typeLabel);
-    body += row("Genre / Style", project.genre);
-    body += row("Status", status ? status.label : "");
-    if (project.logline) body += '<p class="logline">' + esc(project.logline) + '</p>';
-    body += '</div>';
-  }
-  if (selected.timeline) {
-    body += '<div class="sec"><h2>Timeline</h2>';
-    body += row("Start Date", project.startDate);
-    body += row("Delivery Date", project.deliveryDate);
-    body += row("Phases", project.timelinePhases, true);
-    body += '</div>';
-  }
-  if (selected.budget) {
-    body += '<div class="sec"><h2>Budget &amp; Financials</h2>';
-    body += row("Total Budget", project.budgetTotal ? (project.currency + " " + project.budgetTotal) : "");
-    body += row("Payment Schedule", project.paymentSchedule, true);
-    body += row("Notes", project.notes_budget);
-    body += '</div>';
-  }
-  if (selected.deliverables && project.deliverables && project.deliverables.length > 0) {
-    body += '<div class="sec"><h2>Deliverables &amp; Technical Specs</h2>';
-    project.deliverables.forEach((d, i) => {
-      body += '<div class="di"><div class="dn">' + (i+1) + ". " + esc(d.name || "Untitled") + '</div><div class="ds">';
-      if (d.runtime) body += '<div class="sp"><div class="sl">Runtime</div><div class="sv">' + esc(d.runtime) + '</div></div>';
-      if (d.format) body += '<div class="sp"><div class="sl">Format</div><div class="sv">' + esc(d.format) + '</div></div>';
-      if (d.resolution) body += '<div class="sp"><div class="sl">Resolution</div><div class="sv">' + esc(d.resolution) + '</div></div>';
-      if (d.frameRate) body += '<div class="sp"><div class="sl">Frame Rate</div><div class="sv">' + esc(d.frameRate) + '</div></div>';
-      if (d.aspectRatio) body += '<div class="sp"><div class="sl">Aspect Ratio</div><div class="sv">' + esc(d.aspectRatio) + '</div></div>';
-      if (d.colorSpace) body += '<div class="sp"><div class="sl">Color Space</div><div class="sv">' + esc(d.colorSpace) + '</div></div>';
-      body += '</div>';
-      if (d.deliveryFormats && d.deliveryFormats.length > 0)
-        body += '<p style="margin-top:12px;font-size:12px;color:#7a6e61">Additional formats: ' + d.deliveryFormats.map(esc).join(" · ") + '</p>';
-      if (d.notes) body += '<p style="margin-top:8px;font-size:13px;color:#555;font-style:italic">' + esc(d.notes) + '</p>';
-      body += '</div>';
-    });
-    body += '</div>';
-  }
-  if (selected.team) {
-    const roles = [["Director",project.director],["Producer",project.producer],["Writer",project.writer],
-                   ["DOP",project.dop],["Editor",project.editor],["VFX Lead",project.vfxLead]].filter(([,v])=>v);
-    if (roles.length || project.customTeam) {
-      body += '<div class="sec"><h2>Creative Team</h2>';
-      roles.forEach(([k,v]) => { body += row(k, v); });
-      body += row("Additional", project.customTeam, true);
-      body += '</div>';
-    }
-  }
-  if (selected.notes && project.notes_general) {
-    body += '<div class="sec"><h2>Additional Notes</h2><p style="font-size:14px;line-height:1.8;white-space:pre-line">' + esc(project.notes_general) + '</p></div>';
-  }
-  body += '<div class="footer">Confidential · For Discussion Purposes Only</div>';
+  const roles = [["Director",project.director],["Producer",project.producer],["Writer",project.writer],
+                 ["DOP",project.dop],["Editor",project.editor],["VFX Lead",project.vfxLead]].filter(([,v])=>v);
 
   return (
-    '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + esc(project.title || "Proposal") + '</title>' +
-    '<style>' + css + '</style></head><body>' +
-    '<div class="cover">' +
-    '<div class="ey">' + esc(project.client || "Studio") + ' · Project Proposal</div>' +
-    '<h1>' + esc(project.title || "Untitled Project") + '</h1>' +
-    '<div class="meta">Prepared by ' + esc(project.preparedBy || "Studio") + ' &nbsp;·&nbsp; ' + dateStr + '</div>' +
-    '</div>' +
-    '<div class="body">' + body + '</div>' +
-    '</body></html>'
+    <Document>
+      <Page size="LETTER" style={pdfStyles.page}>
+        <View style={pdfStyles.cover}>
+          <Text style={pdfStyles.eyebrow}>{(project.client || "Studio") + " · Project Proposal"}</Text>
+          <Text style={pdfStyles.title}>{project.title || "Untitled Project"}</Text>
+          <Text style={pdfStyles.meta}>{"Prepared by " + (project.preparedBy || "Studio") + "   ·   " + dateStr}</Text>
+        </View>
+
+        <View style={pdfStyles.body}>
+          {selected.overview && (
+            <View style={pdfStyles.section}>
+              <PdfSectionHeading minPresenceAhead={70}>Project Overview</PdfSectionHeading>
+              <PdfRow label="Client" value={project.client} />
+              <PdfRow label="Type" value={typeLabel} />
+              <PdfRow label="Genre / Style" value={project.genre} />
+              <PdfRow label="Status" value={status ? status.label : ""} />
+              {project.logline && <Text style={pdfStyles.logline}>{project.logline}</Text>}
+            </View>
+          )}
+
+          {selected.timeline && (
+            <View style={pdfStyles.section}>
+              <PdfSectionHeading minPresenceAhead={70}>Timeline</PdfSectionHeading>
+              <PdfRow label="Start Date" value={project.startDate} />
+              <PdfRow label="Delivery Date" value={project.deliveryDate} />
+              <PdfRow label="Phases" value={project.timelinePhases} />
+            </View>
+          )}
+
+          {selected.budget && (
+            <View style={pdfStyles.section}>
+              <PdfSectionHeading minPresenceAhead={70}>Budget &amp; Financials</PdfSectionHeading>
+              <PdfRow label="Total Budget" value={project.budgetTotal ? (project.currency + " " + project.budgetTotal) : ""} />
+              <PdfRow label="Payment Schedule" value={project.paymentSchedule} />
+              <PdfRow label="Notes" value={project.notes_budget} />
+            </View>
+          )}
+
+          {selected.deliverables && project.deliverables && project.deliverables.length > 0 && (
+            <View style={pdfStyles.section}>
+              {project.deliverables.map((d, i) => {
+                const card = (
+                  <View style={pdfStyles.deliverableCard} wrap={false}>
+                    <Text style={pdfStyles.deliverableName}>{(i+1) + ". " + (d.name || "Untitled")}</Text>
+                    <View style={pdfStyles.specGrid}>
+                      {d.runtime && <View style={pdfStyles.specItem}><Text style={pdfStyles.specLabel}>Runtime</Text><Text style={pdfStyles.specValue}>{d.runtime}</Text></View>}
+                      {d.format && <View style={pdfStyles.specItem}><Text style={pdfStyles.specLabel}>Format</Text><Text style={pdfStyles.specValue}>{d.format}</Text></View>}
+                      {d.resolution && <View style={pdfStyles.specItem}><Text style={pdfStyles.specLabel}>Resolution</Text><Text style={pdfStyles.specValue}>{d.resolution}</Text></View>}
+                      {d.frameRate && <View style={pdfStyles.specItem}><Text style={pdfStyles.specLabel}>Frame Rate</Text><Text style={pdfStyles.specValue}>{d.frameRate}</Text></View>}
+                      {d.aspectRatio && <View style={pdfStyles.specItem}><Text style={pdfStyles.specLabel}>Aspect Ratio</Text><Text style={pdfStyles.specValue}>{d.aspectRatio}</Text></View>}
+                      {d.colorSpace && <View style={pdfStyles.specItem}><Text style={pdfStyles.specLabel}>Color Space</Text><Text style={pdfStyles.specValue}>{d.colorSpace}</Text></View>}
+                    </View>
+                    {d.deliveryFormats && d.deliveryFormats.length > 0 && (
+                      <Text style={pdfStyles.formatsNote}>{"Additional formats: " + d.deliveryFormats.join(" · ")}</Text>
+                    )}
+                    {d.notes && <Text style={pdfStyles.deliverableNote}>{d.notes}</Text>}
+                  </View>
+                );
+                // Bundle the heading with the first card so the heading can
+                // never end up orphaned alone at the bottom of a page.
+                return i === 0 ? (
+                  <View key={d.id || i} wrap={false}>
+                    <PdfSectionHeading>Deliverables &amp; Technical Specs</PdfSectionHeading>
+                    {card}
+                  </View>
+                ) : (
+                  <View key={d.id || i}>{card}</View>
+                );
+              })}
+            </View>
+          )}
+
+          {selected.team && (roles.length > 0 || project.customTeam) && (
+            <View style={pdfStyles.section}>
+              <PdfSectionHeading minPresenceAhead={70}>Creative Team</PdfSectionHeading>
+              {roles.map(([k,v]) => <PdfRow key={k} label={k} value={v} />)}
+              <PdfRow label="Additional" value={project.customTeam} />
+            </View>
+          )}
+
+          {selected.notes && project.notes_general && (
+            <View style={pdfStyles.section}>
+              <PdfSectionHeading minPresenceAhead={50}>Additional Notes</PdfSectionHeading>
+              <Text style={pdfStyles.notesText}>{project.notes_general}</Text>
+            </View>
+          )}
+
+          <Text style={pdfStyles.footer}>Confidential · For Discussion Purposes Only</Text>
+        </View>
+      </Page>
+    </Document>
+  );
+}
+
+// Classifies one paragraph of the agreement so we can style it.
+function classifyAgreementBlock(text) {
+  const t = text.trim();
+  if (t === "") return { kind: "blank" };
+  if (/^(EXHIBIT A|SIGNATURES)\b/.test(t)) return { kind: "major", text: t };
+  if (/^PRODUCTION AGREEMENT/.test(t)) return { kind: "title", text: t };
+  if (/^\d+(\.\d+)*\.\s/.test(t)) return { kind: "clause", text: t };
+  if (/^Agreed to and Accepted by:/m.test(t)) return { kind: "signature", text: t };
+  return { kind: "body", text: t };
+}
+ 
+function ProductionAgreementDocument({ agreementText, projectTitle }) {
+  const rawBlocks = (agreementText || "").split(/\n\s*\n/);
+
+  // Pre-classify every block so we can look ahead when rendering.
+  const blocks = rawBlocks.map(b => classifyAgreementBlock(b));
+
+  const rendered = [];
+  for (let i = 0; i < blocks.length; i++) {
+    const { kind, text } = blocks[i];
+    if (kind === "blank") continue;
+
+    if (kind === "title") {
+      rendered.push(<Text key={i} style={pdfStyles.agrTitle}>{text}</Text>);
+      continue;
+    }
+
+    if (kind === "major") {
+      // Bind this heading to the next non-blank block so it can't orphan at a
+      // page bottom. wrap={false} keeps the heading + its first content block
+      // together on one page.
+      let j = i + 1;
+      while (j < blocks.length && blocks[j].kind === "blank") j++;
+      const next = blocks[j];
+      rendered.push(
+        <View key={i} style={pdfStyles.agrKeepTogether} wrap={false}>
+          <Text style={pdfStyles.agrMajorHeading}>{text}</Text>
+          {next && next.kind === "clause" && (
+            <Text style={pdfStyles.agrClauseText}>{next.text}</Text>
+          )}
+          {next && next.kind === "body" && (
+            <Text style={pdfStyles.agrBody}>{next.text}</Text>
+          )}
+        </View>
+      );
+      if (next && (next.kind === "clause" || next.kind === "body")) i = j; // consumed the next block
+      continue;
+    }
+
+    if (kind === "clause") {
+      rendered.push(
+        <View key={i} style={pdfStyles.agrClause} minPresenceAhead={50}>
+          <Text style={pdfStyles.agrClauseText}>{text}</Text>
+        </View>
+      );
+      continue;
+    }
+
+    if (kind === "signature") {
+      const lines = text.split("\n").filter(l => l.trim() !== "");
+      rendered.push(
+        <View key={i} style={pdfStyles.agrSignatureBlock} wrap={false}>
+          {lines.map((line, k) => (
+            <Text key={k} style={k === 0 ? pdfStyles.agrSignatureName : pdfStyles.agrSignatureLine}>
+              {line.trim()}
+            </Text>
+          ))}
+        </View>
+      );
+      continue;
+    }
+
+    // body / signature lines
+    rendered.push(<Text key={i} style={pdfStyles.agrBody}>{text}</Text>);
+  }
+
+ return (
+    <Document>
+      <Page size="LETTER" style={pdfStyles.page}>
+        <View>{rendered}</View>
+        <View style={pdfStyles.agrInitialsFooter} fixed>
+          <Text style={pdfStyles.agrInitialsText}>INITIALS: __________  ,  __________</Text>
+        </View>
+      </Page>
+    </Document>
   );
 }
 
@@ -654,11 +972,12 @@ function ProjectCard({ project, currentUser, onOpen, onDelete, onDuplicate, onSh
 }
 
 // ── Home Screen ───────────────────────────────────────────────────────────────
-function HomeScreen({ user, projects, onOpenProject, onNewProject, onDeleteProject, onDuplicateProject, onUpdateProject, onLogout }) {
+function HomeScreen({ user, projects, onOpenProject, onNewProject, onDeleteProject, onDuplicateProject, onUpdateProject, onLogout, isAdmin, productionAgreementTemplate, onSaveProductionAgreementTemplate }) {
   const [showNew, setShowNew] = useState(false);
   const [shareProject, setShareProject] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [search, setSearch] = useState("");
+  const [agreementEditorOpen, setAgreementEditorOpen] = useState(false);
 
   const mine = projects.filter(p =>
     p.ownerId === user.id || (p.collaborators||[]).some(c => c.email.toLowerCase() === user.email.toLowerCase())
@@ -677,6 +996,14 @@ function HomeScreen({ user, projects, onOpenProject, onNewProject, onDeleteProje
     <>
       <FontStyle />
       {showNew && <NewProjectModal onCreate={meta => { onNewProject(meta); setShowNew(false); }} onClose={() => setShowNew(false)} />}
+      {agreementEditorOpen && (
+         <ProductionAgreementTemplateEditorModal
+            template={productionAgreementTemplate}
+            onSave={onSaveProductionAgreementTemplate}
+            onClose={() => setAgreementEditorOpen(false)}
+            isAdmin={isAdmin}
+         />
+      )}
       {shareProject && <ShareModal project={shareProject} onUpdate={p => { onUpdateProject(p); setShareProject(p); }} onClose={() => setShareProject(null)} />}
       {confirmDelete && (
         <ConfirmDialog
@@ -695,6 +1022,9 @@ function HomeScreen({ user, projects, onOpenProject, onNewProject, onDeleteProje
               <p style={{ fontSize:13,fontWeight:600,lineHeight:1.2 }}>{user.name}</p>
               <p style={{ fontSize:11,color:"var(--soft)" }}>{user.email}</p>
             </div>
+            {isAdmin && (
+               <button className="btn btn-ghost" style={{ fontSize:12,padding:"7px 14px" }} onClick={() => setAgreementEditorOpen(true)}>⚙ Admin</button>
+            )}
             <button className="btn btn-ghost" style={{ fontSize:12,padding:"7px 14px" }} onClick={onLogout}>Sign Out</button>
           </div>
         </header>
@@ -1079,7 +1409,7 @@ function PhasesPanel({ phases, checks, onPhasesChange, onChecksChange, alwaysEdi
 }
 
 // ── Template Editor Modal ─────────────────────────────────────────────────────
-function TemplateEditorModal({ template, onSave, onClose, isAdmin }) {
+function ProductionChecklistTemplateEditorModal({ template, onSave, onClose, isAdmin }) {
   const [local, setLocal] = useState(clone(template));
   const [confirmReset, setConfirmReset] = useState(false);
   return (
@@ -1088,7 +1418,7 @@ function TemplateEditorModal({ template, onSave, onClose, isAdmin }) {
         {confirmReset && (
           <ConfirmDialog
             message="Reset to the original default template? Your saved template will be replaced."
-            onConfirm={() => { setLocal(clone(DEFAULT_TEMPLATE)); setConfirmReset(false); }}
+            onConfirm={() => { setLocal(clone(DEFAULT_PRODUCTION_CHECKLIST_TEMPLATE)); setConfirmReset(false); }}
             onCancel={() => setConfirmReset(false)}
           />
         )}
@@ -1116,6 +1446,94 @@ function TemplateEditorModal({ template, onSave, onClose, isAdmin }) {
               <div style={{ display:"flex",gap:10 }}>
                 <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
                 <button className="btn btn-primary" onClick={() => { onSave(local); onClose(); }}>💾 Save Template</button>
+              </div>
+            </>
+          ) : (
+            <div style={{ marginLeft:"auto" }}>
+              <button className="btn btn-ghost" onClick={onClose}>Close</button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Production Agreement Template Editor Modal ──────────────────────────────
+// Paste this right AFTER your ProductionChecklistTemplateEditorModal function.
+// Sibling of the checklist editor: admin edits the studio-wide master agreement;
+// non-admins get a read-only view. Save writes to production_agreement_template
+// (row id:1) via the onSave handler passed from App.
+function ProductionAgreementTemplateEditorModal({ template, onSave, onClose, isAdmin }) {
+  const [local, setLocal] = useState(template);
+  const [confirmReset, setConfirmReset] = useState(false);
+
+  // The tokens the engine knows how to fill — click to insert at the end.
+  const TOKENS = [
+    "CLIENT","TITLE","START_DATE","END_DATE","DELIVERY_DATE","REVISIONS",
+    "BUDGET_TOTAL","PAYMENT_SCHEDULE","TODAY","EXHIBIT_A",
+  ];
+  const insertToken = tok =>
+    setLocal(t => t + (t.endsWith("\n") || t === "" ? "" : " ") + `{{${tok}}}`);
+
+  return (
+    <div className="overlay" onClick={e => { if (e.target===e.currentTarget) onClose(); }}>
+      <div className="modal modal-wide">
+        {confirmReset && (
+          <ConfirmDialog
+            message="Reset to the original default agreement? Your saved agreement will be replaced."
+            onConfirm={() => { setLocal(DEFAULT_PRODUCTION_AGREEMENT_TEMPLATE); setConfirmReset(false); }}
+            onCancel={() => setConfirmReset(false)}
+          />
+        )}
+
+        <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6 }}>
+          <div>
+            <p style={{ fontSize:11,fontWeight:600,letterSpacing:".1em",textTransform:"uppercase",color:"var(--soft)",marginBottom:4 }}>Production Agreement Template</p>
+            <h2 style={{ fontFamily:"var(--serif)",fontSize:26,fontWeight:400 }}>{isAdmin ? "Edit Master Agreement" : "View Master Agreement"}</h2>
+            <p style={{ fontSize:12,color:"var(--soft)",marginTop:6 }}>Tokens like {"{{CLIENT}}"} fill in automatically when a contract is generated for a project.</p>
+          </div>
+          <button onClick={onClose} className="btn btn-ghost" style={{ padding:"7px 14px",flexShrink:0 }}>✕</button>
+        </div>
+
+        {!isAdmin && (
+          <div style={{ padding:"10px 14px",background:"var(--cream)",border:"1px solid var(--border)",borderRadius:8,fontSize:12,color:"var(--soft)",marginBottom:4 }}>
+            Only studio admins can edit the agreement.
+          </div>
+        )}
+
+        <div style={{ height:1,background:"var(--border)",margin:"20px 0" }} />
+
+        {isAdmin && (
+          <div style={{ marginBottom:12 }}>
+            <p style={{ fontSize:10.5,fontWeight:700,letterSpacing:".07em",textTransform:"uppercase",color:"var(--soft)",marginBottom:8 }}>Insert token</p>
+            <div style={{ display:"flex",flexWrap:"wrap",gap:6 }}>
+              {TOKENS.map(tok => (
+                <span key={tok} onClick={() => insertToken(tok)}
+                  style={{ fontFamily:"'Courier New',monospace",fontSize:11.5,cursor:"pointer",
+                           border:"1px solid var(--border)",background:"var(--white)",color:"var(--soft)",
+                           borderRadius:6,padding:"4px 8px" }}>{`{{${tok}}}`}</span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <textarea
+          value={local}
+          onChange={e => setLocal(e.target.value)}
+          readOnly={!isAdmin}
+          spellCheck={false}
+          style={{ width:"100%",height:"48vh",fontFamily:"'Courier New',monospace",fontSize:12.5,
+                   lineHeight:1.7,resize:"vertical",padding:16 }}
+        />
+
+        <div style={{ display:"flex",gap:10,justifyContent:"space-between",marginTop:24,paddingTop:16,borderTop:"1px solid var(--border)" }}>
+          {isAdmin ? (
+            <>
+              <button className="btn btn-danger" style={{ fontSize:12 }} onClick={() => setConfirmReset(true)}>↺ Reset to Default</button>
+              <div style={{ display:"flex",gap:10 }}>
+                <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
+                <button className="btn btn-primary" onClick={() => { onSave(local); onClose(); }}>Save Agreement</button>
               </div>
             </>
           ) : (
@@ -1308,6 +1726,7 @@ function ProposalModal({ project, status, onClose }) {
   const [generated, setGenerated] = useState(false);
   const [pdfText, setPdfText] = useState("");
   const [loading, setLoading] = useState(false);
+  const [downloading, setDownloading] = useState(false);
 
   const toggle = key => setSelected(s => ({ ...s, [key]:!s[key] }));
   const hasData = key => {
@@ -1374,15 +1793,21 @@ function ProposalModal({ project, status, onClose }) {
     setTimeout(() => { setPdfText(buildPreviewText()); setGenerated(true); setLoading(false); }, 400);
   };
 
-  const handleDownload = () => {
-    const html = buildProposalHtml(project, selected, status);
-    const blob = new Blob([html], { type:"text/html" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = (project.title || "proposal").replace(/\s+/g,"_") + "_proposal.html";
-    a.click();
-    URL.revokeObjectURL(url);
+  const handleDownload = async () => {
+    setDownloading(true);
+    try {
+      const blob = await pdf(<ProposalDocument project={project} selected={selected} status={status} />).toBlob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = (project.title || "proposal").replace(/\s+/g,"_") + "_proposal.pdf";
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch(e) {
+      console.error("PDF generation failed:", e);
+    } finally {
+      setDownloading(false);
+    }
   };
 
   return (
@@ -1421,13 +1846,121 @@ function ProposalModal({ project, status, onClose }) {
         ) : (
           <>
             <div style={{ padding:"14px 16px",background:"#f0faf0",borderRadius:8,border:"1px solid #c8e6c9",fontSize:13,color:"#2e7d32",marginBottom:16 }}>
-              ✅ Ready — download as HTML, open in browser → Print → Save as PDF
+              ✅ Ready — download as a multi-page PDF
             </div>
             <pre className="pdf-preview">{pdfText}</pre>
             <div style={{ display:"flex",gap:10,justifyContent:"flex-end",marginTop:20 }}>
+              <button className="btn btn-ghost" onClick={() => setGenerated(false)} disabled={downloading}>← Revise</button>
+              <button className="btn btn-ghost" onClick={onClose} disabled={downloading}>Close</button>
+              <button className="btn btn-primary" onClick={handleDownload} disabled={downloading}>
+                {downloading ? "⏳ Generating…" : "⬇ Download PDF"}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Production Agreement Generate Modal ─────────────────────────────────────
+// Paste this right AFTER your ProposalModal function.
+// Sibling of ProposalModal: generate -> preview the filled agreement (with
+// [MISSING] markers visible) -> download. The agreement is one whole document,
+// so there are no section checkboxes.
+//
+// Naming: this GENERATES a filled agreement for a project. It is distinct from
+// ProductionAgreementTemplateEditorModal, which EDITS the studio-wide template.
+//
+// Props:
+//   project  - the current project object (real field values)
+//   template - the saved production agreement template string (with tokens)
+//   onClose  - closes the modal
+function ProductionAgreementGenerateModal({ project, template, onClose }) {
+  const [generated, setGenerated] = useState(false);
+  const [filledText, setFilledText] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+
+  // Run the token engine against this project's real data.
+  const handleGenerate = () => {
+    setLoading(true);
+    setTimeout(() => {
+      setFilledText(fillContractTemplate(template, project));
+      setGenerated(true);
+      setLoading(false);
+    }, 300);
+  };
+
+  const handleDownload = async () => {
+    setDownloading(true);
+    try {
+      const blob = await pdf(
+        <ProductionAgreementDocument agreementText={filledText} projectTitle={project.title} />
+      ).toBlob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = (project.title || "agreement").replace(/\s+/g, "_") + "_agreement.pdf";
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error("Agreement PDF generation failed:", e);
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  // Which tokens came back empty ([TOKEN] markers) — surfaced so you can catch
+  // an incomplete agreement before downloading. This is why we preview first.
+  const missing = generated
+    ? Array.from(new Set((filledText.match(/\[([A-Z0-9_]+)\]/g) || [])))
+    : [];
+
+  return (
+    <div className="overlay" onClick={e => { if (e.target===e.currentTarget) onClose(); }}>
+      <div className="modal">
+        <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:28 }}>
+          <div>
+            <p style={{ fontSize:11,fontWeight:600,letterSpacing:".1em",textTransform:"uppercase",color:"var(--soft)",marginBottom:4 }}>Production Agreement</p>
+            <h2 style={{ fontFamily:"var(--serif)",fontSize:26,fontWeight:400 }}>Generate Production Agreement</h2>
+          </div>
+          <button onClick={onClose} className="btn btn-ghost" style={{ padding:"7px 14px" }}>✕</button>
+        </div>
+
+        {!generated ? (
+          <>
+            <div style={{ padding:"14px 16px",background:"var(--cream)",borderRadius:8,fontSize:13,color:"var(--soft)",marginBottom:24 }}>
+              This fills the studio's master agreement with <b>{project.title || "this project"}</b>'s details — client, dates, budget, payment schedule, and deliverables (Exhibit A). You'll see a preview to check before downloading.
+            </div>
+            <div style={{ display:"flex",gap:10,justifyContent:"flex-end" }}>
+              <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
+              <button className="btn btn-primary" onClick={handleGenerate} disabled={loading}>
+                {loading ? "Building…" : "Generate Agreement"}
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            {missing.length > 0 ? (
+              <div style={{ padding:"12px 16px",background:"#fff4e5",border:"1px solid #ffcc80",borderRadius:8,fontSize:13,color:"#b15300",marginBottom:16 }}>
+                ⚠ {missing.length} field{missing.length!==1?"s":""} still empty: {missing.join(", ")}. These show as [MARKERS] below — fill them in on the project before sending this agreement.
+              </div>
+            ) : (
+              <div style={{ padding:"12px 16px",background:"#f0faf0",border:"1px solid #c8e6c9",borderRadius:8,fontSize:13,color:"#2e7d32",marginBottom:16 }}>
+                ✅ All fields filled — no missing values.
+              </div>
+            )}
+
+            <pre className="pdf-preview" style={{ maxHeight:360 }}>{filledText}</pre>
+
+            <div style={{ display:"flex",gap:10,justifyContent:"flex-end",marginTop:20 }}>
               <button className="btn btn-ghost" onClick={() => setGenerated(false)}>← Revise</button>
               <button className="btn btn-ghost" onClick={onClose}>Close</button>
-              <button className="btn btn-primary" onClick={handleDownload}>⬇ Download Proposal</button>
+              {/* Download is wired to the real PDF in 3e (ProductionAgreementDocument). */}
+              <button className="btn btn-primary" onClick={handleDownload} disabled={downloading} title="Download PDF">
+                {downloading ? "Downloading…" : "⬇ Download PDF"}
+              </button>
             </div>
           </>
         )}
@@ -1437,9 +1970,10 @@ function ProposalModal({ project, status, onClose }) {
 }
 
 // ── Project Editor ────────────────────────────────────────────────────────────
-function ProjectEditor({ project: initProject, user, onUpdate, onClose, template, onSaveTemplate, isAdmin }) {
+function ProjectEditor({ project: initProject, user, onUpdate, onClose, template, onSaveTemplate, isAdmin, productionAgreementTemplate }) {
   const [project, setProject] = useState(initProject);
   const [proposalOpen, setProposalOpen] = useState(false);
+  const [agreementOpen, setAgreementOpen] = useState(false);
   const [tplEditorOpen, setTplEditorOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
@@ -1499,7 +2033,8 @@ function ProjectEditor({ project: initProject, user, onUpdate, onClose, template
     <>
       <FontStyle />
       {proposalOpen && <ProposalModal project={project} status={status} onClose={() => setProposalOpen(false)} />}
-      {tplEditorOpen && <TemplateEditorModal template={template} onSave={onSaveTemplate} onClose={() => setTplEditorOpen(false)} isAdmin={isAdmin} />}
+      {agreementOpen && <ProductionAgreementGenerateModal project={project} template={productionAgreementTemplate} onClose={()=>setAgreementOpen(false)} />}
+      {tplEditorOpen && <ProductionChecklistTemplateEditorModal template={template} onSave={onSaveTemplate} onClose={() => setTplEditorOpen(false)} isAdmin={isAdmin} />}
       {shareOpen && <ShareModal project={project} onUpdate={p => { setProject(p); onUpdate(p); }} onClose={() => setShareOpen(false)} />}
       {confirmReset && (
         <ConfirmDialog
@@ -1528,7 +2063,6 @@ function ProjectEditor({ project: initProject, user, onUpdate, onClose, template
               <span style={{ fontSize:11,color:"var(--soft)",fontWeight:600 }}>{fieldPct}%</span>
             </div>
             <button className="btn btn-ghost" style={{ fontSize:12,padding:"7px 12px" }} onClick={() => setShareOpen(true)}>👥 Share</button>
-            <button className="btn btn-primary" style={{ fontSize:12,padding:"7px 14px" }} onClick={() => setProposalOpen(true)}>📄 Proposal</button>
           </div>
         </header>
 
@@ -1604,10 +2138,12 @@ function ProjectEditor({ project: initProject, user, onUpdate, onClose, template
               <>
                 <div style={{ marginBottom:24 }}><h1 style={{ fontFamily:"var(--serif)",fontSize:32,fontWeight:400,marginBottom:4 }}>Timeline</h1><p style={{ color:"var(--soft)",fontSize:13 }}>Key dates and production phases.</p></div>
                 <div className="card">
-                  <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:16 }}>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:16}}>
                     <Field label="Start Date"><input type="date" value={project.startDate} onChange={e=>set("startDate",e.target.value)}/></Field>
                     <Field label="Delivery Date"><input type="date" value={project.deliveryDate} onChange={e=>set("deliveryDate",e.target.value)}/></Field>
+                    <Field label="End Date"><input type="date" value={project.endDate} onChange={e=>set("endDate",e.target.value)}/></Field>
                   </div>
+                  <Field label="Number of Revisions"><input value={project.revisions} onChange={e=>set("revisions",e.target.value)} placeholder="e.g. 2, 3, Unlimited"/></Field>
                   <Field label="Production Phases"><textarea rows={7} value={project.timelinePhases} onChange={e=>set("timelinePhases",e.target.value)} placeholder={"Week 1–2: Concept & Script\nWeek 3–6: Storyboarding\nWeek 7–14: Production\nWeek 15–18: Post-Production\nWeek 19: Delivery"}/></Field>
                 </div>
               </>
@@ -1683,13 +2219,13 @@ function ProjectEditor({ project: initProject, user, onUpdate, onClose, template
             )}
 
             {activeTab==="docs" && (
-              <DocsLinksTab files={project.files||[]} links={project.links||[]} saveFiles={saveFiles} setLinks={setLinks} userId={user.id} projectId={project.id} />
-            )}
-
-            {activeTab!=="checklist" && activeTab!=="docs" && (
-              <div style={{ display:"flex",justifyContent:"flex-end",marginTop:8 }}>
-                <button className="btn btn-outline" onClick={() => setProposalOpen(true)}>📄 Build Proposal</button>
-              </div>
+              <>
+                <div style={{ display:"flex",justifyContent:"flex-end",gap:10,marginBottom:16 }}>
+                  <button className="btn btn-outline" onClick={()=>setProposalOpen(true)}>📄 Build Proposal</button>
+                  <button className="btn btn-outline" onClick={()=>setAgreementOpen(true)}>📝 Generate Production Agreement</button>
+                </div>
+                <DocsLinksTab files={project.files||[]} links={project.links||[]} saveFiles={saveFiles} setLinks={setLinks} userId={user.id} projectId={project.id} />
+              </>
             )}
           </main>
         </div>
@@ -1715,7 +2251,9 @@ const toDb = p => ({
   genre:            p.genre,
   start_date:       p.startDate,
   delivery_date:    p.deliveryDate,
+  end_date:         p.endDate,
   timeline_phases:  p.timelinePhases,
+  revisions:        p.revisions,
   budget_total:     p.budgetTotal,
   currency:         p.currency,
   payment_schedule: p.paymentSchedule,
@@ -1751,7 +2289,9 @@ const fromDb = r => ({
   genre:           r.genre             || "",
   startDate:       r.start_date        || "",
   deliveryDate:    r.delivery_date     || "",
+  endDate:         r.end_date          || "",
   timelinePhases:  r.timeline_phases   || "",
+  revisions:       r.revisions         || "",
   budgetTotal:     r.budget_total      || "",
   currency:        r.currency          || "USD",
   paymentSchedule: r.payment_schedule  || "",
@@ -1776,7 +2316,8 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [projects, setProjects] = useState([]);
   const [currentProjectId, setCurrentProjectId] = useState(null);
-  const [template, setTemplate] = useState(clone(DEFAULT_TEMPLATE));
+  const [productionChecklistTemplate, setProductionChecklistTemplate] = useState(clone(DEFAULT_PRODUCTION_CHECKLIST_TEMPLATE));
+  const [productionAgreementTemplate, setProductionAgreementTemplate] = useState(DEFAULT_PRODUCTION_AGREEMENT_TEMPLATE);
   const [isAdmin, setIsAdmin] = useState(false);
   const [appLoading, setAppLoading] = useState(true);
 
@@ -1814,16 +2355,26 @@ export default function App() {
 
   const loadTemplateAndAdmin = async user => {
     const [tplRes, adminRes] = await Promise.all([
-      supabase.from("studio_template").select("phases").eq("id", 1).single(),
-      supabase.from("admins").select("user_id").eq("user_id", user.id).single(),
+     supabase.from("production_checklist_template").select("phases").eq("id", 1).single(),
+      supabase.from("profiles").select("is_admin").eq("id", user.id).single(),
     ]);
-    if (tplRes.data?.phases) setTemplate(tplRes.data.phases);
-    setIsAdmin(!adminRes.error && !!adminRes.data);
+    if (tplRes.data?.phases) setProductionChecklistTemplate(tplRes.data.phases);
+    const admin = !adminRes.error && !!adminRes.data?.is_admin;
+    setIsAdmin(admin);
+    if (admin) {
+      const agrRes = await supabase.from("production_agreement_template").select("body").eq("id", 1).maybeSingle();
+      if (agrRes.data?.body) setProductionAgreementTemplate(agrRes.data.body);
+    }
   };
 
-  const saveTemplate = async tpl => {
-    setTemplate(tpl);
-    await supabase.from("studio_template").upsert({ id: 1, phases: tpl, updated_at: new Date().toISOString() });
+  const saveProductionChecklistTemplate = async tpl => {
+    setProductionChecklistTemplate(tpl);
+    await supabase.from("production_checklist_template").upsert({ id: 1, phases: tpl, updated_at: new Date().toISOString() });
+  };
+
+  const saveProductionAgreementTemplate = async tpl => {
+    setProductionAgreementTemplate(tpl);
+    await supabase.from("production_agreement_template").upsert({ id: 1, body: tpl, updated_at: new Date().toISOString() });
   };
 
   const handleLogin = async supabaseUser => {
@@ -1838,7 +2389,7 @@ export default function App() {
   };
 
   const createProject = async meta => {
-    const np = { ...emptyProject(template, currentUser), title:meta.title||"Untitled Project", client:meta.client||"", projectType:meta.type||"animation" };
+    const np = { ...emptyProject(productionChecklistTemplate, currentUser), title:meta.title||"Untitled Project", client:meta.client||"", projectType:meta.type||"animation" };
     const { id: _omit, ...rowWithoutId } = toDb(np);
     const { data, error } = await supabase.from("projects").insert(rowWithoutId).select().single();
     if (error) { console.error("createProject:", error); return; }
@@ -1882,8 +2433,9 @@ export default function App() {
         user={currentUser}
         onUpdate={updateProject}
         onClose={() => setCurrentProjectId(null)}
-        template={template}
-        onSaveTemplate={saveTemplate}
+        template={productionChecklistTemplate}
+        productionAgreementTemplate={productionAgreementTemplate}
+        onSaveTemplate={saveProductionChecklistTemplate}
         isAdmin={isAdmin}
       />
     );
@@ -1899,6 +2451,9 @@ export default function App() {
       onDuplicateProject={duplicateProject}
       onUpdateProject={updateProject}
       onLogout={handleLogout}
+      isAdmin={isAdmin}
+      productionAgreementTemplate={productionAgreementTemplate}
+      onSaveProductionAgreementTemplate={saveProductionAgreementTemplate}
     />
   );
 }
