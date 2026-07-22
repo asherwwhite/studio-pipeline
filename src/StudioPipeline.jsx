@@ -124,7 +124,7 @@ const DEFAULT_PRODUCTION_CHECKLIST_TEMPLATE = [
 // It's the tokenized master agreement used as the default before anything is saved.
 const DEFAULT_PRODUCTION_AGREEMENT_TEMPLATE = `PRODUCTION AGREEMENT / SCOPE OF WORK AGREEMENT
 
-This Agreement ("AGREEMENT") is entered into as of {{TODAY}} by and between Shaper Films ("PRODUCER"), and {{CLIENT}}, ("CLIENT"). Client and Producer may also hereinafter be referred to as "Party" or the "Parties", as applicable.
+This Agreement ("AGREEMENT") is entered into as of {{TODAY}} by and between {{PRODUCER}} ("PRODUCER"), and {{CLIENT}}, ("CLIENT"). Client and Producer may also hereinafter be referred to as "Party" or the "Parties", as applicable.
 
 WHEREAS, Producer confirms it has the know-how and professional expertise to execute the deliverables ("Deliverables") for {{TITLE}}; and
 
@@ -254,6 +254,7 @@ const fmtDateLong = d => d
 // To add a token later, add one line here — this is the single source of truth.
 const CONTRACT_TOKENS = {
   CLIENT:           p => p.client,
+  PRODUCER:         p => p.orgName,
   TITLE:            p => p.title,
   START_DATE:       p => fmtDateLong(p.startDate),
   END_DATE:         p => fmtDateLong(p.endDate),
@@ -728,7 +729,7 @@ function Avatar({ name, email, size=32 }) {
 function AuthScreen({ onLogin }) {
   const [provider, setProvider] = useState(null);
   const [mode, setMode] = useState("signin");
-  const [form, setForm] = useState({ name:"", email:"", password:"" });
+  const [form, setForm] = useState({ name:"", email:"", password:"", studioName:"" });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const sf = (k, v) => setForm(f => ({ ...f, [k]:v }));
@@ -748,12 +749,13 @@ function AuthScreen({ onLogin }) {
     if (!email.includes("@")) { setError("Please enter a valid email address."); return; }
     if (!password) { setError("Please enter a password."); return; }
     if (isSignUp && !form.name.trim()) { setError("Please enter your name."); return; }
+    if (isSignUp && !form.studioName.trim()) { setError("Please enter your studio name."); return; }
     setLoading(true); setError("");
     try {
       if (isSignUp) {
         const { data, error } = await supabase.auth.signUp({
           email, password,
-          options: { data: { full_name: form.name.trim() } },
+          options: { data: { full_name: form.name.trim(), studio_name: form.studioName.trim() } },
         });
         if (error) { setError(error.message); setLoading(false); return; }
         if (data.user) onLogin(data.user);
@@ -798,9 +800,14 @@ function AuthScreen({ onLogin }) {
               ← Back
             </button>
             {mode === "signup" && (
-              <Field label="Full Name">
-                <input value={form.name} onChange={e => sf("name",e.target.value)} placeholder="Jane Doe" autoFocus />
-              </Field>
+              <>
+                <Field label="Full Name">
+                  <input value={form.name} onChange={e => sf("name",e.target.value)} placeholder="Jane Doe" autoFocus />
+                </Field>
+                <Field label="Studio / Company Name">
+                  <input value={form.studioName} onChange={e => sf("studioName",e.target.value)} placeholder="e.g. Shaper Films" />
+                </Field>
+              </>
             )}
             <Field label="Email Address">
               <input type="email" value={form.email} onChange={e => sf("email",e.target.value)}
@@ -971,13 +978,194 @@ function ProjectCard({ project, currentUser, onOpen, onDelete, onDuplicate, onSh
   );
 }
 
+// ── Admin Screen ────────────────────────────────────────────────────────────
+// Paste this BEFORE your HomeScreen function (top level, sibling of HomeScreen
+// and ProjectEditor). Studio-level admin: settings that belong to the org
+// rather than to any one project.
+//
+// Props:
+//   user                  - current user (for the header avatar)
+//   orgName               - current organization name
+//   onSaveOrgName         - async (name) => void
+//   agreementTemplate     - saved production agreement template string
+//   onSaveAgreementTemplate - async (text) => void
+//   onClose               - return to the home screen
+function AdminScreen({ user, orgName, onSaveOrgName, agreementTemplate, onSaveAgreementTemplate, onClose }) {
+  const [section, setSection] = useState("studio");
+
+  // — Studio settings state —
+  const [nameDraft, setNameDraft] = useState(orgName || "");
+  const [savingName, setSavingName] = useState(false);
+  const [nameSaved, setNameSaved] = useState(false);
+  const nameDirty = nameDraft.trim() !== (orgName || "") && nameDraft.trim() !== "";
+
+  const handleSaveName = async () => {
+    setSavingName(true);
+    await onSaveOrgName(nameDraft.trim());
+    setSavingName(false);
+    setNameSaved(true);
+    setTimeout(() => setNameSaved(false), 2000);
+  };
+
+  // — Agreement template state —
+  const [tplDraft, setTplDraft] = useState(agreementTemplate || "");
+  const [savingTpl, setSavingTpl] = useState(false);
+  const [tplSaved, setTplSaved] = useState(false);
+  const [confirmReset, setConfirmReset] = useState(false);
+  const tplDirty = tplDraft !== (agreementTemplate || "");
+
+  const TOKENS = [
+    "PRODUCER","CLIENT","TITLE","START_DATE","END_DATE","DELIVERY_DATE",
+    "REVISIONS","BUDGET_TOTAL","PAYMENT_SCHEDULE","TODAY","EXHIBIT_A",
+  ];
+  const insertToken = tok =>
+    setTplDraft(t => t + (t.endsWith("\n") || t === "" ? "" : " ") + `{{${tok}}}`);
+
+  const handleSaveTpl = async () => {
+    setSavingTpl(true);
+    await onSaveAgreementTemplate(tplDraft);
+    setSavingTpl(false);
+    setTplSaved(true);
+    setTimeout(() => setTplSaved(false), 2000);
+  };
+
+  const sections = [
+    { id: "studio",    label: "Studio Settings",      icon: "◈" },
+    { id: "agreement", label: "Production Agreement", icon: "◫" },
+  ];
+
+  return (
+    <>
+      <FontStyle />
+      {confirmReset && (
+        <ConfirmDialog
+          message="Reset to the original default agreement? Your saved agreement will be replaced."
+          onConfirm={() => { setTplDraft(DEFAULT_PRODUCTION_AGREEMENT_TEMPLATE); setConfirmReset(false); }}
+          onCancel={() => setConfirmReset(false)}
+        />
+      )}
+
+      <div style={{ minHeight:"100vh", background:"var(--paper)" }}>
+        {/* Header — mirrors the project editor's sticky header */}
+        <header style={{ position:"sticky", top:0, zIndex:50, background:"rgba(245,242,236,.92)",
+                         backdropFilter:"blur(12px)", borderBottom:"1px solid var(--border)",
+                         display:"flex", alignItems:"center", justifyContent:"space-between",
+                         padding:"0 32px", height:60 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:10, minWidth:0 }}>
+            <button onClick={onClose} className="btn btn-ghost" style={{ padding:"6px 12px", fontSize:12, flexShrink:0 }}>← Home</button>
+            <span style={{ color:"var(--soft)", fontSize:16 }}>·</span>
+            <span style={{ fontFamily:"var(--serif)", fontSize:18, flexShrink:0 }}>⚙</span>
+            <span style={{ fontSize:13, color:"var(--soft)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+              Studio Admin
+            </span>
+          </div>
+          <div style={{ display:"flex", alignItems:"center", gap:10, flexShrink:0 }}>
+            <span style={{ fontSize:12, color:"var(--soft)" }}>{orgName}</span>
+          </div>
+        </header>
+
+        <div style={{ display:"flex", maxWidth:1100, margin:"0 auto", padding:"32px 24px", gap:28, alignItems:"flex-start" }}>
+          {/* Sidebar */}
+          <nav style={{ width:200, flexShrink:0, position:"sticky", top:80 }}>
+            {sections.map(s => (
+              <button key={s.id} onClick={() => setSection(s.id)} style={{
+                display:"flex", alignItems:"center", gap:8, width:"100%", textAlign:"left",
+                padding:"10px 14px", borderRadius:8, border:"none",
+                background: section===s.id ? "var(--accent)" : "transparent",
+                color: section===s.id ? "#fff" : "var(--ink)",
+                fontFamily:"var(--sans)", fontSize:13, fontWeight: section===s.id ? 600 : 400,
+                cursor:"pointer", marginBottom:2, transition:"all .15s",
+              }}>
+                <span style={{ opacity: section===s.id ? 1 : .4, fontSize:12 }}>{s.icon}</span>
+                {s.label}
+              </button>
+            ))}
+          </nav>
+
+          {/* Main */}
+          <main style={{ flex:1, minWidth:0 }}>
+            {section === "studio" && (
+              <>
+                <div style={{ marginBottom:24 }}>
+                  <h1 style={{ fontFamily:"var(--serif)", fontSize:32, fontWeight:400, marginBottom:4 }}>Studio Settings</h1>
+                  <p style={{ color:"var(--soft)", fontSize:13 }}>Details that apply across every project in your studio.</p>
+                </div>
+                <div className="card">
+                  <Field label="Studio / Company Name">
+                    <input value={nameDraft} onChange={e => setNameDraft(e.target.value)} placeholder="e.g. Shaper Films" />
+                  </Field>
+                  <p style={{ fontSize:12, color:"var(--soft)", marginTop:-8, marginBottom:16 }}>
+                    This appears as the producer on every contract you generate.
+                  </p>
+                  <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+                    <button className="btn btn-primary" onClick={handleSaveName} disabled={!nameDirty || savingName}>
+                      {savingName ? "Saving…" : "Save"}
+                    </button>
+                    {nameSaved && <span style={{ fontSize:12, color:"#4caf50", fontWeight:600 }}>✓ Saved</span>}
+                  </div>
+                </div>
+              </>
+            )}
+
+            {section === "agreement" && (
+              <>
+                <div style={{ marginBottom:24 }}>
+                  <h1 style={{ fontFamily:"var(--serif)", fontSize:32, fontWeight:400, marginBottom:4 }}>Production Agreement</h1>
+                  <p style={{ color:"var(--soft)", fontSize:13 }}>
+                    Your studio's master agreement. Tokens fill in automatically when you generate a contract for a project.
+                  </p>
+                </div>
+                <div className="card">
+                  <p style={{ fontSize:10.5, fontWeight:700, letterSpacing:".07em", textTransform:"uppercase",
+                              color:"var(--soft)", marginBottom:8 }}>Insert token</p>
+                  <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:18 }}>
+                    {TOKENS.map(tok => (
+                      <span key={tok} onClick={() => insertToken(tok)}
+                        style={{ fontFamily:"'Courier New',monospace", fontSize:11.5, cursor:"pointer",
+                                 border:"1px solid var(--border)", background:"var(--white)", color:"var(--soft)",
+                                 borderRadius:6, padding:"4px 8px" }}>{`{{${tok}}}`}</span>
+                    ))}
+                  </div>
+
+                  <textarea
+                    value={tplDraft}
+                    onChange={e => setTplDraft(e.target.value)}
+                    spellCheck={false}
+                    style={{ width:"100%", height:"52vh", fontFamily:"'Courier New',monospace",
+                             fontSize:12.5, lineHeight:1.7, resize:"vertical", padding:16 }}
+                  />
+
+                  <div style={{ display:"flex", gap:10, justifyContent:"space-between", alignItems:"center",
+                                marginTop:20, paddingTop:16, borderTop:"1px solid var(--border)" }}>
+                    <button className="btn btn-danger" style={{ fontSize:12 }} onClick={() => setConfirmReset(true)}>
+                      ↺ Reset to Default
+                    </button>
+                    <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+                      {tplSaved && <span style={{ fontSize:12, color:"#4caf50", fontWeight:600 }}>✓ Saved</span>}
+                      <button className="btn btn-ghost" onClick={() => setTplDraft(agreementTemplate || "")} disabled={!tplDirty}>
+                        Discard changes
+                      </button>
+                      <button className="btn btn-primary" onClick={handleSaveTpl} disabled={!tplDirty || savingTpl}>
+                        {savingTpl ? "Saving…" : "Save Agreement"}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+          </main>
+        </div>
+      </div>
+    </>
+  );
+}
+
 // ── Home Screen ───────────────────────────────────────────────────────────────
-function HomeScreen({ user, projects, onOpenProject, onNewProject, onDeleteProject, onDuplicateProject, onUpdateProject, onLogout, isAdmin, productionAgreementTemplate, onSaveProductionAgreementTemplate }) {
+function HomeScreen({ user, projects, onOpenProject, onNewProject, onDeleteProject, onDuplicateProject, onUpdateProject, onLogout, isAdmin, productionAgreementTemplate, onSaveProductionAgreementTemplate, onOpenAdmin }) {
   const [showNew, setShowNew] = useState(false);
   const [shareProject, setShareProject] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [search, setSearch] = useState("");
-  const [agreementEditorOpen, setAgreementEditorOpen] = useState(false);
 
   const mine = projects.filter(p =>
     p.ownerId === user.id || (p.collaborators||[]).some(c => c.email.toLowerCase() === user.email.toLowerCase())
@@ -996,14 +1184,6 @@ function HomeScreen({ user, projects, onOpenProject, onNewProject, onDeleteProje
     <>
       <FontStyle />
       {showNew && <NewProjectModal onCreate={meta => { onNewProject(meta); setShowNew(false); }} onClose={() => setShowNew(false)} />}
-      {agreementEditorOpen && (
-         <ProductionAgreementTemplateEditorModal
-            template={productionAgreementTemplate}
-            onSave={onSaveProductionAgreementTemplate}
-            onClose={() => setAgreementEditorOpen(false)}
-            isAdmin={isAdmin}
-         />
-      )}
       {shareProject && <ShareModal project={shareProject} onUpdate={p => { onUpdateProject(p); setShareProject(p); }} onClose={() => setShareProject(null)} />}
       {confirmDelete && (
         <ConfirmDialog
@@ -1023,7 +1203,7 @@ function HomeScreen({ user, projects, onOpenProject, onNewProject, onDeleteProje
               <p style={{ fontSize:11,color:"var(--soft)" }}>{user.email}</p>
             </div>
             {isAdmin && (
-               <button className="btn btn-ghost" style={{ fontSize:12,padding:"7px 14px" }} onClick={() => setAgreementEditorOpen(true)}>⚙ Admin</button>
+              <button className="btn btn-ghost" style={{ fontSize:12,padding:"7px 14px" }} onClick={onOpenAdmin}>⚙ Admin</button>
             )}
             <button className="btn btn-ghost" style={{ fontSize:12,padding:"7px 14px" }} onClick={onLogout}>Sign Out</button>
           </div>
@@ -1459,94 +1639,6 @@ function ProductionChecklistTemplateEditorModal({ template, onSave, onClose, isA
   );
 }
 
-// ── Production Agreement Template Editor Modal ──────────────────────────────
-// Paste this right AFTER your ProductionChecklistTemplateEditorModal function.
-// Sibling of the checklist editor: admin edits the studio-wide master agreement;
-// non-admins get a read-only view. Save writes to production_agreement_template
-// (row id:1) via the onSave handler passed from App.
-function ProductionAgreementTemplateEditorModal({ template, onSave, onClose, isAdmin }) {
-  const [local, setLocal] = useState(template);
-  const [confirmReset, setConfirmReset] = useState(false);
-
-  // The tokens the engine knows how to fill — click to insert at the end.
-  const TOKENS = [
-    "CLIENT","TITLE","START_DATE","END_DATE","DELIVERY_DATE","REVISIONS",
-    "BUDGET_TOTAL","PAYMENT_SCHEDULE","TODAY","EXHIBIT_A",
-  ];
-  const insertToken = tok =>
-    setLocal(t => t + (t.endsWith("\n") || t === "" ? "" : " ") + `{{${tok}}}`);
-
-  return (
-    <div className="overlay" onClick={e => { if (e.target===e.currentTarget) onClose(); }}>
-      <div className="modal modal-wide">
-        {confirmReset && (
-          <ConfirmDialog
-            message="Reset to the original default agreement? Your saved agreement will be replaced."
-            onConfirm={() => { setLocal(DEFAULT_PRODUCTION_AGREEMENT_TEMPLATE); setConfirmReset(false); }}
-            onCancel={() => setConfirmReset(false)}
-          />
-        )}
-
-        <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6 }}>
-          <div>
-            <p style={{ fontSize:11,fontWeight:600,letterSpacing:".1em",textTransform:"uppercase",color:"var(--soft)",marginBottom:4 }}>Production Agreement Template</p>
-            <h2 style={{ fontFamily:"var(--serif)",fontSize:26,fontWeight:400 }}>{isAdmin ? "Edit Master Agreement" : "View Master Agreement"}</h2>
-            <p style={{ fontSize:12,color:"var(--soft)",marginTop:6 }}>Tokens like {"{{CLIENT}}"} fill in automatically when a contract is generated for a project.</p>
-          </div>
-          <button onClick={onClose} className="btn btn-ghost" style={{ padding:"7px 14px",flexShrink:0 }}>✕</button>
-        </div>
-
-        {!isAdmin && (
-          <div style={{ padding:"10px 14px",background:"var(--cream)",border:"1px solid var(--border)",borderRadius:8,fontSize:12,color:"var(--soft)",marginBottom:4 }}>
-            Only studio admins can edit the agreement.
-          </div>
-        )}
-
-        <div style={{ height:1,background:"var(--border)",margin:"20px 0" }} />
-
-        {isAdmin && (
-          <div style={{ marginBottom:12 }}>
-            <p style={{ fontSize:10.5,fontWeight:700,letterSpacing:".07em",textTransform:"uppercase",color:"var(--soft)",marginBottom:8 }}>Insert token</p>
-            <div style={{ display:"flex",flexWrap:"wrap",gap:6 }}>
-              {TOKENS.map(tok => (
-                <span key={tok} onClick={() => insertToken(tok)}
-                  style={{ fontFamily:"'Courier New',monospace",fontSize:11.5,cursor:"pointer",
-                           border:"1px solid var(--border)",background:"var(--white)",color:"var(--soft)",
-                           borderRadius:6,padding:"4px 8px" }}>{`{{${tok}}}`}</span>
-              ))}
-            </div>
-          </div>
-        )}
-
-        <textarea
-          value={local}
-          onChange={e => setLocal(e.target.value)}
-          readOnly={!isAdmin}
-          spellCheck={false}
-          style={{ width:"100%",height:"48vh",fontFamily:"'Courier New',monospace",fontSize:12.5,
-                   lineHeight:1.7,resize:"vertical",padding:16 }}
-        />
-
-        <div style={{ display:"flex",gap:10,justifyContent:"space-between",marginTop:24,paddingTop:16,borderTop:"1px solid var(--border)" }}>
-          {isAdmin ? (
-            <>
-              <button className="btn btn-danger" style={{ fontSize:12 }} onClick={() => setConfirmReset(true)}>↺ Reset to Default</button>
-              <div style={{ display:"flex",gap:10 }}>
-                <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
-                <button className="btn btn-primary" onClick={() => { onSave(local); onClose(); }}>Save Agreement</button>
-              </div>
-            </>
-          ) : (
-            <div style={{ marginLeft:"auto" }}>
-              <button className="btn btn-ghost" onClick={onClose}>Close</button>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ── Docs & Links Tab ──────────────────────────────────────────────────────────
 function DocsLinksTab({ files, links, saveFiles, setLinks, userId, projectId }) {
   const [dragging, setDragging] = useState(false);
@@ -1869,14 +1961,14 @@ function ProposalModal({ project, status, onClose }) {
 // [MISSING] markers visible) -> download. The agreement is one whole document,
 // so there are no section checkboxes.
 //
-// Naming: this GENERATES a filled agreement for a project. It is distinct from
-// ProductionAgreementTemplateEditorModal, which EDITS the studio-wide template.
+// Naming: this GENERATES a filled agreement for a project, distinct from the
+// template editing that lives in AdminScreen.
 //
 // Props:
 //   project  - the current project object (real field values)
 //   template - the saved production agreement template string (with tokens)
 //   onClose  - closes the modal
-function ProductionAgreementGenerateModal({ project, template, onClose }) {
+function ProductionAgreementGenerateModal({ project, template, orgName, onClose }) {
   const [generated, setGenerated] = useState(false);
   const [filledText, setFilledText] = useState("");
   const [loading, setLoading] = useState(false);
@@ -1886,7 +1978,7 @@ function ProductionAgreementGenerateModal({ project, template, onClose }) {
   const handleGenerate = () => {
     setLoading(true);
     setTimeout(() => {
-      setFilledText(fillContractTemplate(template, project));
+      setFilledText(fillContractTemplate(template, { ...project, orgName }));
       setGenerated(true);
       setLoading(false);
     }, 300);
@@ -1970,7 +2062,7 @@ function ProductionAgreementGenerateModal({ project, template, onClose }) {
 }
 
 // ── Project Editor ────────────────────────────────────────────────────────────
-function ProjectEditor({ project: initProject, user, onUpdate, onClose, template, onSaveTemplate, isAdmin, productionAgreementTemplate }) {
+function ProjectEditor({ project: initProject, user, onUpdate, onClose, template, onSaveTemplate, isAdmin, productionAgreementTemplate, currentOrgName }) {
   const [project, setProject] = useState(initProject);
   const [proposalOpen, setProposalOpen] = useState(false);
   const [agreementOpen, setAgreementOpen] = useState(false);
@@ -2033,7 +2125,7 @@ function ProjectEditor({ project: initProject, user, onUpdate, onClose, template
     <>
       <FontStyle />
       {proposalOpen && <ProposalModal project={project} status={status} onClose={() => setProposalOpen(false)} />}
-      {agreementOpen && <ProductionAgreementGenerateModal project={project} template={productionAgreementTemplate} onClose={()=>setAgreementOpen(false)} />}
+      {agreementOpen && <ProductionAgreementGenerateModal project={project} template={productionAgreementTemplate} orgName={currentOrgName} onClose={()=>setAgreementOpen(false)} />}
       {tplEditorOpen && <ProductionChecklistTemplateEditorModal template={template} onSave={onSaveTemplate} onClose={() => setTplEditorOpen(false)} isAdmin={isAdmin} />}
       {shareOpen && <ShareModal project={project} onUpdate={p => { setProject(p); onUpdate(p); }} onClose={() => setShareOpen(false)} />}
       {confirmReset && (
@@ -2322,6 +2414,8 @@ export default function App() {
   const [productionAgreementTemplate, setProductionAgreementTemplate] = useState(DEFAULT_PRODUCTION_AGREEMENT_TEMPLATE);
   const [isAdmin, setIsAdmin] = useState(false);
   const [currentOrgId, setCurrentOrgId] = useState(null);
+  const [adminOpen, setAdminOpen] = useState(false);
+  const [currentOrgName, setCurrentOrgName] = useState("");
   const [appLoading, setAppLoading] = useState(true);
 
   useEffect(() => {
@@ -2360,13 +2454,14 @@ const loadTemplateAndAdmin = async user => {
     // 1. Which org does this user belong to, and with what role?
     const memRes = await supabase
       .from("organization_members")
-      .select("org_id, role")
+      .select("org_id, role, organizations(name)")
       .eq("user_id", user.id)
       .maybeSingle();
 
     const orgId = memRes.data?.org_id || null;
     const admin = memRes.data?.role === "admin";
     setCurrentOrgId(orgId);
+    setCurrentOrgName(memRes.data?.organizations?.name || "");
     setIsAdmin(admin);
 
     // No org yet (e.g. brand-new signup) — nothing more to load.
@@ -2404,6 +2499,13 @@ const loadTemplateAndAdmin = async user => {
     await supabase.from("production_agreement_template")
       .upsert({ org_id: currentOrgId, body: tpl, updated_at: new Date().toISOString() },
               { onConflict: "org_id" });
+  };
+
+  const saveOrgName = async name => {
+    if (!currentOrgId) return;
+    const { error } = await supabase.from("organizations").update({ name }).eq("id", currentOrgId);
+    if (error) { console.error("saveOrgName:", error); return; }
+    setCurrentOrgName(name);
   };
 
   const handleLogin = async supabaseUser => {
@@ -2454,12 +2556,26 @@ const loadTemplateAndAdmin = async user => {
   if (appLoading) return <><FontStyle/><LoadingScreen /></>;
   if (!currentUser) return <><FontStyle/><AuthScreen onLogin={handleLogin} /></>;
 
+  if (adminOpen) {
+    return (
+      <AdminScreen
+        user={currentUser}
+        orgName={currentOrgName}
+        onSaveOrgName={saveOrgName}
+        agreementTemplate={productionAgreementTemplate}
+        onSaveAgreementTemplate={saveProductionAgreementTemplate}
+        onClose={() => setAdminOpen(false)}
+      />
+    );
+  }
+
   const currentProject = projects.find(p => p.id===currentProjectId);
   if (currentProjectId && currentProject) {
     return (
       <ProjectEditor
         project={currentProject}
         user={currentUser}
+        currentOrgName={currentOrgName}
         onUpdate={updateProject}
         onClose={() => setCurrentProjectId(null)}
         template={productionChecklistTemplate}
@@ -2481,8 +2597,7 @@ const loadTemplateAndAdmin = async user => {
       onUpdateProject={updateProject}
       onLogout={handleLogout}
       isAdmin={isAdmin}
-      productionAgreementTemplate={productionAgreementTemplate}
-      onSaveProductionAgreementTemplate={saveProductionAgreementTemplate}
+      onOpenAdmin={() => setAdminOpen(true)}
     />
   );
 }
